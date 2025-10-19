@@ -44,6 +44,7 @@ namespace MusicPlayer {
     play: (songId: string) => void;
     prev: () => void;
     next: () => void;
+    getCurrentSong: () => Song | null;
   }
 
   interface ISongQueue {
@@ -55,6 +56,8 @@ namespace MusicPlayer {
     prev: () => ResultSet;
     getCurrentSong: () => Song | null;
     setCurrentSongById: (songId: string) => void;
+    size: () => number;
+    isEmpty: () => boolean;
   }
 
   type PlayState = "playing" | "paused";
@@ -67,22 +70,31 @@ namespace MusicPlayer {
       return this.#queue[this.#currentIndex];
     }
 
-    setCurrentSongById(songId: string) {
+    size(): number {
+      return this.#queue.length;
+    }
+
+    isEmpty(): boolean {
+      return this.#queue.length === 0;
+    }
+
+    setCurrentSongById(songId: string): boolean {
       const songIndex = this.#queue.findIndex((song) => song.id === songId); // O(n) search
 
       if (songIndex < 0) {
         console.error(`Song with ID ${songId} not found in queue`);
-        return;
+        return false;
       }
 
       this.#currentIndex = songIndex;
+      return true;
     }
 
-    enqueue(song: Song) {
+    enqueue(song: Song): void {
       this.#queue.push(song);
     }
 
-    enqueueMany(songs: Song[]) {
+    enqueueMany(songs: Song[]): void {
       this.#queue.push(...songs);
     }
 
@@ -97,7 +109,7 @@ namespace MusicPlayer {
       return true;
     }
 
-    clear() {
+    clear(): void {
       this.#queue = [];
       this.#currentIndex = -1;
     }
@@ -128,15 +140,27 @@ namespace MusicPlayer {
     currentSong: Song | null = null;
     #isPlayState: PlayState = "paused";
     #songs: Map<string, Song> = new Map<string, Song>();
-    #songQueue: SongQueue;
+    #songQueue: ISongQueue;
 
-    constructor(songs: Map<string, Song>, songQueue: SongQueue) {
+    constructor(songs: Map<string, Song>, songQueue: ISongQueue) {
       this.#songs = songs;
       this.#songQueue = songQueue;
     }
 
+    getCurrentSong(): Song | null {
+      return this.#songQueue.getCurrentSong();
+    }
+
     isPlaying(): boolean {
       return this.#isPlayState === "playing";
+    }
+
+    loadPlaylist(playlist: Playlist): void {
+      this.#songQueue.clear();
+      this.#songQueue.enqueueMany(playlist.songs);
+      console.log(
+        `Loaded playlist: ${playlist.name} with ${playlist.songs.length} songs`
+      );
     }
 
     /**
