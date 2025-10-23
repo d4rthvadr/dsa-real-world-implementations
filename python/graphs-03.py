@@ -24,7 +24,6 @@ class Graph:
 
 def main():
     
-    g = Graph()
     graph = Graph()
     graph.add_edge(0, 1)
     graph.add_edge(0, 2)
