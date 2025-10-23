@@ -13,15 +13,8 @@ class Graph:
 
     def add_edge(self, u, v):     
         
-        if u not in self.graph:
-            self.graph[u] = set()
-        adj_list = self.graph[u]
-        adj_list.add(v)
-        # add to the other vertice
-        if v not in self.graph:
-            self.graph[v] = set()
-        adj_list = self.graph[v]
-        adj_list.add(u)      
+        self.graph.setdefault(u, set()).add(v)   
+        self.graph.setdefault(v, set()).add(u)   
          
     def __str__(self):
         return str(self.graph)     
