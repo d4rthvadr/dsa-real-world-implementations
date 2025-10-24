@@ -178,10 +178,11 @@ namespace ruleEngine {
       }; // hardcode to avoid definite assignment error;
     }
 
-    #createRuleError(field: string, message: string): RuleError {
+    #createRuleError(field: string, message: string, value?: any): RuleError {
       return {
         field,
         message,
+        value,
       };
     }
 
@@ -210,7 +211,8 @@ namespace ruleEngine {
 
       const err = this.#createRuleError(
         field,
-        this.#customErrorMessage(rule.withMessage)
+        this.#customErrorMessage(rule.withMessage),
+        value
       );
 
       this.#log("info", `Validation failed for field: ${field}`, err);
