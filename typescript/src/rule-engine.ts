@@ -100,6 +100,21 @@ namespace ruleEngine {
     };
   };
 
+  const maxRule = ({
+    max,
+    message,
+  }: { max: number } & RuleWithMessage): IRule => {
+    return {
+      validator: (value: unknown): boolean => {
+        if (value === undefined || value === null) {
+          return true;
+        }
+        return typeof value === "string" && value.length <= max;
+      },
+      withMessage: message ?? `Must be <= ${max} characters`,
+    };
+  };
+
   const isString = (opts?: RuleWithMessage): IRule => {
     return {
       validator: (value: unknown) =>
@@ -138,7 +153,7 @@ namespace ruleEngine {
    */
 
   const DefaultRuleConfig: IRuleConfig = {
-    failFast: true,
+    failFast: false,
     verbose: false,
   };
   class RuleEngine<T extends Record<string, unknown>>
@@ -152,15 +167,18 @@ namespace ruleEngine {
     #log: ILogger;
 
     private constructor(raw: T, schema: ISchema, config?: IRuleConfig) {
-      if (config) {
-        this.#config = {
-          ...DefaultRuleConfig,
-          ...config,
-        };
-      }
+      this.#config = {
+        ...DefaultRuleConfig,
+        ...config,
+      };
+
       this.#body = raw;
       this.#schema = schema;
       this.#log = logger(this.#config);
+      this.metaContext = {
+        field: "",
+        dirty: {},
+      }; // hardcode to avoid definite assignment error;
     }
 
     #createRuleError(field: string, message: string): RuleError {
@@ -194,20 +212,25 @@ namespace ruleEngine {
       if (isValid) {
         return;
       }
+      // TODO: implement transform
+
       const err = this.#createRuleError(
         field,
         this.#customErrorMessage(rule.withMessage)
       );
+
       this.#log("info", `Validation failed for field: ${field}`, err);
-      this.#ruleErrors.push(err);
-      // TODO: implement transform
+      return err;
     }
 
-    #checkIfFailFast(ruleErrors: RuleError[]): void {
-      if (ruleErrors.length > 0 && this.isFailFast()) {
-        console.log("Fail fast enabled. Stopping execution.", ruleErrors.pop());
-        throw Error("Validation failed");
-      }
+    #checkIfFailFast(): void {
+      if (!this.isFailFast() || this.#ruleErrors.length === 0) return;
+
+      console.log(
+        "Fail fast enabled. Stopping execution.",
+        this.#ruleErrors[0]
+      );
+      throw Error("Validation failed");
     }
 
     validate(): RuleError[] | void {
@@ -217,12 +240,36 @@ namespace ruleEngine {
           const execResult = this.#execRuleValidator(value, field, rule);
           if (execResult) {
             this.#ruleErrors.push(execResult);
+            this.#checkIfFailFast();
           }
         }
       }
-      this.#checkIfFailFast(this.#ruleErrors);
 
       return this.#ruleErrors;
+    }
+
+    /**
+     * Retrieves a complete validation result from the rule engine without short-circuiting.
+     *
+     * This method temporarily disables the engine's "failFast" configuration so that all rules
+     * are evaluated and every validation error is collected. After calling the engine's
+     * validate() method, the original failFast configuration is restored.
+     *
+     * @returns An object with the following properties:
+     * - isValid: `true` when no validation errors were found, otherwise `false`.
+     * - errors: an array of `RuleError` instances (empty when `isValid` is `true`).
+ 
+     */
+    getValidationResults(): { isValid: boolean; errors: RuleError[] } {
+      const originalFailFast = this.#config.failFast;
+      this.#config.failFast = false; // Temporarily disable failFast to get all errors
+      const errors = this.validate() || [];
+      this.#config.failFast = originalFailFast; // Restore original failFast setting
+
+      return {
+        isValid: errors.length === 0,
+        errors,
+      };
     }
 
     static schema<T extends Record<string, unknown>>(
@@ -248,12 +295,6 @@ namespace ruleEngine {
    *                     here with the default options `{ verbose: true }`.
    *
    * @returns void
-   *
-   * @remarks
-   * - This function performs synchronous validation and will propagate any exceptions
-   *   thrown by the `ruleEngine` invocation or by the returned object's `validate()` call.
-   * - If you require different options (for example, `verbose: false`) or asynchronous
-   *   validation, invoke the `ruleEngine` directly or adapt this function accordingly.
    *
    * @throws Any error thrown by the `ruleEngine` or by its `validate()` method.
    *
