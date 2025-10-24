@@ -14,7 +14,6 @@
  */
 namespace ruleEngine {
   interface IRuleConfig {
-    failFast?: boolean;
     verbose?: boolean;
   }
 
@@ -35,7 +34,7 @@ namespace ruleEngine {
   }
 
   interface IRuleEngine<T> {
-    validate(): void;
+    getValidationResults(): { isValid: boolean; errors: RuleError[] };
   }
 
   interface RuleError {
@@ -153,7 +152,6 @@ namespace ruleEngine {
    */
 
   const DefaultRuleConfig: IRuleConfig = {
-    failFast: false,
     verbose: false,
   };
   class RuleEngine<T extends Record<string, unknown>>
@@ -163,7 +161,6 @@ namespace ruleEngine {
     #body!: T;
     #schema: ISchema;
     metaContext!: IMetaContext;
-    #ruleErrors: RuleError[] = [];
     #log: ILogger;
 
     private constructor(raw: T, schema: ISchema, config?: IRuleConfig) {
@@ -186,9 +183,6 @@ namespace ruleEngine {
         field,
         message,
       };
-    }
-    isFailFast(): boolean {
-      return this.#config.failFast ?? false;
     }
 
     #customErrorMessage(
@@ -223,29 +217,17 @@ namespace ruleEngine {
       return err;
     }
 
-    #checkIfFailFast(): void {
-      if (!this.isFailFast() || this.#ruleErrors.length === 0) return;
-
-      console.log(
-        "Fail fast enabled. Stopping execution.",
-        this.#ruleErrors[0]
-      );
-      throw Error("Validation failed");
-    }
-
-    validate(): RuleError[] | void {
+    #validate(): RuleError[] | void {
+      const ruleErrors: RuleError[] = [];
       for (const [field, rules] of Object.entries(this.#schema)) {
         const value = this.#body[field];
         for (const rule of rules) {
           const execResult = this.#execRuleValidator(value, field, rule);
-          if (execResult) {
-            this.#ruleErrors.push(execResult);
-            this.#checkIfFailFast();
-          }
+          if (execResult) ruleErrors.push(execResult);
         }
       }
 
-      return this.#ruleErrors;
+      return ruleErrors;
     }
 
     /**
@@ -261,10 +243,7 @@ namespace ruleEngine {
  
      */
     getValidationResults(): { isValid: boolean; errors: RuleError[] } {
-      const originalFailFast = this.#config.failFast;
-      this.#config.failFast = false; // Temporarily disable failFast to get all errors
-      const errors = this.validate() || [];
-      this.#config.failFast = originalFailFast; // Restore original failFast setting
+      const errors = this.#validate() || [];
 
       return {
         isValid: errors.length === 0,
@@ -301,7 +280,8 @@ namespace ruleEngine {
    */
   function main(body: any, ruleEngine: RuleEngineClosure<any>) {
     const re = ruleEngine(body, { verbose: true });
-    re.validate();
+    const results = re.getValidationResults();
+    console.log("Validation Results:", results);
   }
 
   const exampleBody = {
