@@ -142,7 +142,7 @@ namespace ruleEngine {
     predicate,
   }: { predicate: (data: any) => boolean } & RuleWithMessage): IRule => {
     return {
-      validator: predicate,
+      validator: (v: unknown) => predicate(v),
       withMessage: message,
     };
   };
