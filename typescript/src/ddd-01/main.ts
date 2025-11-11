@@ -3,10 +3,16 @@ import { ItemRepository } from "./item-repository";
 import Repository from "./repository.base";
 import { ID } from "./types";
 
-function main() {
+async function main() {
   const itemRepository: Repository<Item, ID> = new ItemRepository();
 
-  itemRepository.save({ id: "_id_01" }, 123);
+  await itemRepository.save({ id: "_id_01" }, 123);
 }
 
-main();
+main()
+  .then(() => {
+    console.log("Done");
+  })
+  .catch((e) => {
+    console.error("Error in main:", e);
+  });
